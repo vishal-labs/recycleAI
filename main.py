@@ -11,6 +11,90 @@ async def lifespan(app: FastAPI):
     app.state.device = "cuda" if torch.cuda.is_available() else "cpu"
     ckpt = torch.load("recycler_mlp.pth", map_location="cpu")
     app.state.classes = ckpt["classes"]
+    
+    # Class mapping to subtypes, colors, and CO2 emissions
+    app.state.class_info = {
+        'plastic': {
+            'subtypes': ['PET Bottle', 'PVC Container', 'HDPE Container', 'PP Container'],
+            'color': '#0066CC',
+            'gradient': 'linear-gradient(135deg, #0066CC 0%, #0099FF 100%)',
+            'co2': 2.8,
+            'icon': '♻️',
+            'category': 'Plastic'
+        },
+        'glass': {
+            'subtypes': ['Clear Glass', 'Colored Glass', 'Wine Bottle', 'Container Glass'],
+            'color': '#00AACC',
+            'gradient': 'linear-gradient(135deg, #00AACC 0%, #00DDFF 100%)',
+            'co2': 0.3,
+            'icon': '🪟',
+            'category': 'Glass'
+        },
+        'paper': {
+            'subtypes': ['Cardboard', 'Newspaper', 'Office Paper', 'Magazine'],
+            'color': '#FF9933',
+            'gradient': 'linear-gradient(135deg, #FF9933 0%, #FFCC66 100%)',
+            'co2': 1.5,
+            'icon': '📄',
+            'category': 'Paper'
+        },
+        'cardboard': {
+            'subtypes': ['Corrugated Cardboard', 'Box Cardboard', 'Packing Cardboard'],
+            'color': '#FF9933',
+            'gradient': 'linear-gradient(135deg, #FF9933 0%, #FFCC66 100%)',
+            'co2': 1.8,
+            'icon': '📦',
+            'category': 'Cardboard'
+        },
+        'metal': {
+            'subtypes': ['Aluminum Can', 'Steel Can', 'Tin Container', 'Copper Item'],
+            'color': '#888888',
+            'gradient': 'linear-gradient(135deg, #888888 0%, #CCCCCC 100%)',
+            'co2': 2.0,
+            'icon': '🗑️',
+            'category': 'Metal'
+        },
+        'can': {
+            'subtypes': ['Aluminum Can', 'Tin Can', 'Beverage Can'],
+            'color': '#888888',
+            'gradient': 'linear-gradient(135deg, #888888 0%, #CCCCCC 100%)',
+            'co2': 2.2,
+            'icon': '🥫',
+            'category': 'Metal Can'
+        },
+        'bottle': {
+            'subtypes': ['PET Bottle', 'Glass Bottle', 'HDPE Bottle', 'Aluminum Bottle'],
+            'color': '#0066CC',
+            'gradient': 'linear-gradient(135deg, #0066CC 0%, #0099FF 100%)',
+            'co2': 2.5,
+            'icon': '🍼',
+            'category': 'Bottle'
+        },
+        'battery': {
+            'subtypes': ['Alkaline Battery', 'Lithium Battery', 'Lead Acid Battery', 'NiCad Battery'],
+            'color': '#FF3300',
+            'gradient': 'linear-gradient(135deg, #FF3300 0%, #FF6666 100%)',
+            'co2': 0.5,
+            'icon': '🔋',
+            'category': 'Battery'
+        },
+        'clothes': {
+            'subtypes': ['Cotton Fabric', 'Polyester Fabric', 'Mixed Fabric', 'Wool Fabric'],
+            'color': '#9933CC',
+            'gradient': 'linear-gradient(135deg, #9933CC 0%, #CC66FF 100%)',
+            'co2': 1.2,
+            'icon': '👕',
+            'category': 'Fabric'
+        },
+        'trash': {
+            'subtypes': ['General Waste', 'Organic Waste', 'Mixed Trash'],
+            'color': '#666666',
+            'gradient': 'linear-gradient(135deg, #666666 0%, #999999 100%)',
+            'co2': 0.1,
+            'icon': '🗑️',
+            'category': 'Non-Recyclable'
+        }
+    }
 
     app.state.clip_model, app.state.preprocess = clip.load(
         ckpt["clip_name"], device=app.state.device
@@ -442,25 +526,51 @@ async def predict(file: UploadFile = File(...)):
     
     predicted_class = app.state.classes[idx]
     
-    # Determine if recyclable and calculate CO2 savings
-    recyclable_keywords = ['recyclable', 'recycle', 'cardboard', 'paper', 'metal', 'glass', 'plastic', 'bottle', 'can']
-    is_recyclable = any(keyword.lower() in predicted_class.lower() for keyword in recyclable_keywords)
+    # Find matching class info (fuzzy match)
+    class_lower = predicted_class.lower()
+    class_info = None
+    matched_key = None
     
-    # CO2 savings in kg per item (estimated values)
-    co2_savings = {
-        'recyclable': 2.5,  # kg CO2 saved per recyclable item
-        'non_recyclable': 0.1  # kg CO2 saved even for non-recyclable if properly disposed
-    }
+    for key, info in app.state.class_info.items():
+        if key in class_lower:
+            class_info = info
+            matched_key = key
+            break
     
-    emission_saved = co2_savings['recyclable'] if is_recyclable else co2_savings['non_recyclable']
-    background_gradient = (
-        "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)" if is_recyclable 
-        else "linear-gradient(135deg, #ee0979 0%, #ff6a00 100%)"
-    )
+    # Default fallback
+    if class_info is None:
+        recyclable_keywords = ['recyclable', 'recycle', 'cardboard', 'paper', 'metal', 'glass', 'plastic', 'bottle', 'can']
+        is_recyclable = any(keyword.lower() in class_lower for keyword in recyclable_keywords)
+        if is_recyclable:
+            class_info = app.state.class_info['plastic']  # Default to plastic for recyclables
+            matched_key = 'plastic'
+        else:
+            class_info = app.state.class_info['trash']
+            matched_key = 'trash'
     
-    result_color = "#11998e" if is_recyclable else "#ee0979"
-    result_icon = "♻️" if is_recyclable else "❌"
-    result_message = "Great job!" if is_recyclable else "Needs proper disposal"
+    # Select a random subtype (or first subtype)
+    import random
+    specific_type = random.choice(class_info['subtypes'])
+    
+    # Get CO2, color, icon from class_info
+    emission_saved = class_info['co2']
+    background_gradient = class_info['gradient']
+    result_color = class_info['color']
+    result_icon = class_info['icon']
+    
+    # Create bulb indicators HTML
+    bulb_html = ""
+    for key, info in app.state.class_info.items():
+        is_active = (key == matched_key)
+        bulb_class = "bulb bulb-active" if is_active else "bulb bulb-inactive"
+        bulb_html += f'''
+            <div class="{bulb_class}" style="background: {info['color'] if is_active else '#444444'}">
+                <div class="bulb-icon">{info['icon']}</div>
+                <div class="bulb-label">{info['category']}</div>
+            </div>
+        '''
+    
+    result_message = "Great job! This item is recyclable." if matched_key != 'trash' else "Needs proper disposal"
     
     # Create result HTML
     result_html = f"""
@@ -542,6 +652,52 @@ async def predict(file: UploadFile = File(...)):
                 font-size: 18px;
                 font-weight: bold;
             }}
+            .bulb-container {{
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+                margin: 20px 0;
+            }}
+            .bulb {{
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                border: 3px solid transparent;
+                opacity: 0.5;
+            }}
+            .bulb-active {{
+                opacity: 1;
+                border-color: white;
+                transform: scale(1.2);
+                box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+            }}
+            .bulb-inactive {{
+                opacity: 0.3;
+            }}
+            .bulb-icon {{
+                font-size: 24px;
+                margin-bottom: 2px;
+            }}
+            .bulb-label {{
+                font-size: 8px;
+                color: white;
+                text-align: center;
+                font-weight: bold;
+            }}
+            .specific-type {{
+                background: rgba(255, 255, 255, 0.2);
+                padding: 10px 20px;
+                border-radius: 20px;
+                margin: 10px 0;
+                font-size: 16px;
+                font-weight: bold;
+            }}
             .back-button {{
                 background: {result_color};
                 color: white;
@@ -565,11 +721,20 @@ async def predict(file: UploadFile = File(...)):
     <body>
         <div class="result-container">
             <h1>🎯 Prediction Result</h1>
+            
+            <div class="bulb-container">
+                {bulb_html}
+            </div>
+            
             <div class="image-preview">
                 <img src="data:image/jpeg;base64,{img_str}" alt="Uploaded image">
             </div>
+            
             <div class="result-box">
                 <h2>{result_icon} {predicted_class}</h2>
+                <div class="specific-type" style="background: {result_color}; margin-top: 10px;">
+                    📋 Specific Type: {specific_type}
+                </div>
             </div>
             
             <div class="message-box">
@@ -581,7 +746,7 @@ async def predict(file: UploadFile = File(...)):
                 <div class="big-number">{emission_saved:.2f}</div>
                 <div class="unit">kg CO₂ emissions reduced</div>
                 <p style="margin: 15px 0 0 0; font-size: 14px; opacity: 0.95;">
-                    {('Recycling this item helps reduce greenhouse gas emissions and supports a circular economy!' if is_recyclable else 'Proper disposal still helps minimize environmental impact.')}
+                    {'Recycling this item helps reduce greenhouse gas emissions and supports a circular economy!' if matched_key != 'trash' else 'Proper disposal still helps minimize environmental impact.'}
                 </p>
             </div>
             
