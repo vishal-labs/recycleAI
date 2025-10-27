@@ -1,0 +1,22 @@
+# Core ML stack (CPU by default; versions are a compatible pair)
+torch
+torchvision
+
+# OpenAI CLIP (official repo) and its common deps
+git+https://github.com/openai/CLIP.git
+ftfy
+regex
+tqdm
+
+# Utilities used in your code
+numpy
+pillow
+
+# API serving
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Optional: export formats (uncomment if you use them)
+# onnx
+# onnxruntime
