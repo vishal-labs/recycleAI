@@ -19,3 +19,13 @@ Goals:
 - Deliver a robust, field‑ready sorting stack that adapts as new materials emerge
 - Provide transparent metrics that connect sorting accuracy to climate impact
 - Enable researchers and practitioners to replicate, extend, and deploy at scale
+
+### Implementation
+ - Clone this repository
+ - If you want a docker implementation, just run the given docker file
+ - If you want a Non-docker implementation, make sure the dependencies are installed and then
+ using FastAPI, run the python file
+```bash
+fastapi dev main.py
+```
+- This would run the application on localhost and we can go to `localhost:8000` and access it. 
