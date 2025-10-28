@@ -21,19 +21,15 @@ cd recycleAI
 
 # Install all required Python packages (FastAPI, Uvicorn, PyTorch, CLIP)
 pip install -r requirements.txt
+```
 Step 2: Start the Server
 Run the core application file using the Uvicorn ASGI server.
-
-Bash
-
+```bash
 python -m uvicorn main:app --reload
+```
 🌐 Application Access and Testing
 Step 3: Access and Test Functionality
 The application runs on the local server at http://127.0.0.1:8000/.
-
-View Landing Page: Navigate to the root URL: http://127.0.0.1:8000/ (This displays the project's professional landing page.)
-
-Test Classification: To test the ViT model directly, navigate to the interactive API documentation (Swagger UI): http://127.0.0.1:8000/docs
 
 Upload an image via the classification endpoint.
 
